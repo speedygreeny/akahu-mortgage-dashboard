@@ -11,3 +11,4 @@ exclude =
     build,
     dist,
     __pycache__
+extend-ignore = E501
