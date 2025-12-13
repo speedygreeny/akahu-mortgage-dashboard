@@ -1,0 +1,26 @@
+version: "3.7"
+
+services:
+  seed_db:
+    build: .
+    command: ["/bin/sh", "-c", "python scripts/generate_mock_data.py && python scripts/create_minimal_views.py"]
+    volumes:
+      - .:/app
+      - ./data:/data
+    environment:
+      - DUCKDB_PATH=/data/akahu.duckdb
+
+  dashboard:
+    build: .
+    container_name: mortgage_dashboard_dev
+    command: ["/bin/sh", "-c", "python scripts/create_minimal_views.py || true; python dashboard/app.py"]
+    volumes:
+      - .:/app
+      - ./data:/data
+    ports:
+      - "8001:8001"
+    depends_on:
+      - seed_db
+    environment:
+      - DUCKDB_PATH=/data/akahu.duckdb
+      - FLASK_DEBUG=1

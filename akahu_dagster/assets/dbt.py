@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from dagster import AssetExecutionContext
@@ -36,8 +35,9 @@ if manifest_path.exists():
             # This satisfies Dagster's uniqueness requirement while keeping the
             # assets clearly associated with the raw ingestion data.
             if dbt_resource_props and dbt_resource_props.get("resource_type") == "source":
-                pkg = dbt_resource_props.get("package_name") or dbt_resource_props.get("package")
-                source_name = dbt_resource_props.get("source_name")
+                # keep values for potential debugging but avoid unused-variable lint errors
+                _pkg = dbt_resource_props.get("package_name") or dbt_resource_props.get("package")
+                _source_name = dbt_resource_props.get("source_name")
                 name = dbt_resource_props.get("name")
                 # Example AssetKey: ["akahu_raw", "accounts"]
                 return AssetKey(["akahu_raw", name])

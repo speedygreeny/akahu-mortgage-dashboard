@@ -1,6 +1,6 @@
 import os
 import duckdb
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template
 from dotenv import load_dotenv
 import logging
 
@@ -281,7 +281,12 @@ def home():
 
 @app.route('/mortgage')
 def mortgage():
-    return render_template('mortgage.html')
+    # Allow configuring house/property value via environment variable
+    try:
+        house_value = float(os.environ.get('HOUSE_VALUE')) if os.environ.get('HOUSE_VALUE') else 1450000.0
+    except Exception:
+        house_value = 1450000.0
+    return render_template('mortgage.html', house_value=house_value)
 
 @app.route('/health')
 def health():

@@ -26,8 +26,6 @@
           </div>
         </div>
         <div class="flex items-center space-x-4">
-            <a href="/" class="text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">Home</a>
-            <a href="/properties" class="text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">Properties</a>
         </div>
         <!-- Health banner placeholder -->
         <div id="health-banner" class="hidden items-center mr-4">
@@ -136,7 +134,7 @@
             </div>
             <div class="mt-4 pt-4 border-t border-slate-50 text-sm">
                 <span id="kpi-lvr" class="font-medium text-slate-700">--</span>
-                <span class="text-slate-400 ml-1">LVR on $1.45m Value</span>
+                <span class="text-slate-400 ml-1">LVR on {{ "${:,.0f}".format(house_value) }} Value</span>
             </div>
         </div>
     </div>
@@ -150,8 +148,8 @@
             </div>
             <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                 <label class="flex items-center cursor-pointer group">
-                    <input type="checkbox" id="includeCreditCards" checked onchange="renderOverallChart()" class="w-4 h-4 text-indigo-600 bg-slate-100 border-slate-300 rounded focus:ring-indigo-500 focus:ring-2 cursor-pointer">
-                    <span class="ml-2 text-sm font-medium text-slate-700 group-hover:text-slate-900">Include Credit Cards</span>
+                    <input type="checkbox" id="includeCreditCards" checked onchange="renderOverallChart(); updateTotalBalanceKPIs();" class="w-4 h-4 text-indigo-600 bg-slate-100 border-slate-300 rounded focus:ring-indigo-500 focus:ring-2 cursor-pointer">
+                    <span class="ml-2 text-sm font-medium text-slate-700 group-hover:text-slate-900">Include other accounts (net worth)</span>
                 </label>
                 <div class="bg-slate-100 p-1 rounded-lg flex shadow-inner">
                     <button onclick="setGranularity('day')" id="btn-day" class="px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200">Daily</button>
@@ -175,6 +173,10 @@
             <button onclick="switchTab('creditcards')" id="tab-creditcards" class="flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ml-1">
                 <span class="text-lg font-bold">Credit Cards</span>
                 <span class="ml-3 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600" id="creditcard-count">--</span>
+            </button>
+            <button onclick="switchTab('other')" id="tab-other" class="flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ml-1">
+                <span class="text-lg font-bold">Other</span>
+                <span class="ml-3 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600" id="other-count">--</span>
             </button>
         </div>
 
@@ -204,6 +206,13 @@
                 <!-- Credit card account cards injected here -->
             </div>
         </div>
+
+        <!-- Other Accounts Tab Content -->
+        <div id="other-content" class="tab-content hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="otherAccountsContainer">
+                <!-- Other account cards injected here -->
+            </div>
+        </div>
     </div>
 
   </main>
@@ -211,6 +220,8 @@
   <script>
   const fmt = new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD' });
   const palette = ['#4f46e5','#7c3aed','#db2777','#ea580c','#ca8a04','#16a34a']; // Indigo, Violet, Pink, Orange, Yellow, Green
+    // House value injected from server-side environment variable
+    const HOUSE_VALUE = {{ house_value | tojson }};
   
   let globalGranularity = 'day';
   let overallRawData = [];
@@ -229,18 +240,31 @@
     const activeClasses = 'border-indigo-600 text-indigo-600';
     const inactiveClasses = 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300';
     
-    if (tab === 'loans') {
+        if (tab === 'loans') {
       loansBtn.className = `flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ${activeClasses}`;
       creditCardsBtn.className = `flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ml-1 ${inactiveClasses}`;
+            const otherBtn = document.getElementById('tab-other');
+            otherBtn.className = `flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ml-1 ${inactiveClasses}`;
       document.getElementById('loans-content').classList.remove('hidden');
       document.getElementById('creditcards-content').classList.add('hidden');
+            document.getElementById('other-content').classList.add('hidden');
     } else {
-      loansBtn.className = `flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ${inactiveClasses}`;
-      creditCardsBtn.className = `flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ml-1 ${activeClasses}`;
-      document.getElementById('loans-content').classList.add('hidden');
-      document.getElementById('creditcards-content').classList.remove('hidden');
-      // Render credit card chart when tab is shown
-      renderCreditCardChart();
+            const otherBtn = document.getElementById('tab-other');
+            loansBtn.className = `flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ${inactiveClasses}`;
+            creditCardsBtn.className = `flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ml-1 ${inactiveClasses}`;
+            otherBtn.className = `flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ml-1 ${inactiveClasses}`;
+            document.getElementById('loans-content').classList.add('hidden');
+            document.getElementById('creditcards-content').classList.add('hidden');
+            document.getElementById('other-content').classList.add('hidden');
+            if (tab === 'creditcards') {
+                creditCardsBtn.className = `flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ml-1 ${activeClasses}`;
+                document.getElementById('creditcards-content').classList.remove('hidden');
+                // Render credit card chart when tab is shown
+                renderCreditCardChart();
+            } else if (tab === 'other') {
+                otherBtn.className = `flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ml-1 ${activeClasses}`;
+                document.getElementById('other-content').classList.remove('hidden');
+            }
     }
   }
 
@@ -313,12 +337,15 @@
     if (!kpiData) return;
     
     const includeCreditCards = document.getElementById('includeCreditCards').checked;
+    // House value injected from server-side environment variable
+    const houseValue = HOUSE_VALUE;
     
     // If checkbox is unchecked, we need to get mortgage-only data
     // The API returns net_debt (mortgage + CC), so we need to fetch mortgage_over_time to get separate values
-    if (!includeCreditCards && overallRawData.length > 0) {
-      const latest = overallRawData[overallRawData.length - 1];
-      const total = Math.abs(Number(latest.total_mortgage_balance || 0));
+        if (!includeCreditCards && overallRawData.length > 0) {
+            // Mortgage-only KPIs (exclude other accounts)
+            const latest = overallRawData[overallRawData.length - 1];
+            const total = Math.abs(Number(latest.total_mortgage_balance || 0));
       
       // Find previous month's data
       const latestDate = new Date(latest.snapshot_date);
@@ -337,31 +364,43 @@
       changeEl.textContent = `${change >= 0 ? '+' : ''}${fmt.format(change)}`;
       changeEl.className = change < 0 ? 'font-medium text-emerald-600' : (change > 0 ? 'font-medium text-red-600' : 'font-medium text-slate-600');
       
-      // Equity Calculation
-      const houseValue = 1450000;
-      const equity = houseValue - total;
-      const lvr = (total / houseValue) * 100;
+            // Equity Calculation
+            const equity = houseValue - total;
+            const lvr = (total / houseValue) * 100;
       
       document.getElementById('kpi-equity').textContent = fmt.format(equity);
       document.getElementById('kpi-lvr').textContent = `${lvr.toFixed(1)}%`;
-    } else {
-      // Use net debt (includes credit cards)
-      const total = Number(kpiData.total_net_debt || kpiData.total_mortgage || 0);
-      const change = Number(kpiData.monthly_change || 0);
-      
-      document.getElementById('kpi-total').textContent = fmt.format(total);
-      const changeEl = document.getElementById('kpi-change');
-      changeEl.textContent = `${change >= 0 ? '+' : ''}${fmt.format(change)}`;
-      changeEl.className = change < 0 ? 'font-medium text-emerald-600' : (change > 0 ? 'font-medium text-red-600' : 'font-medium text-slate-600');
-      
-      // Equity Calculation
-      const houseValue = 1450000;
-      const equity = houseValue - total;
-      const lvr = (total / houseValue) * 100;
-      
-      document.getElementById('kpi-equity').textContent = fmt.format(equity);
-      document.getElementById('kpi-lvr').textContent = `${lvr.toFixed(1)}%`;
-    }
+        } else if (overallRawData.length > 0) {
+            // Compute net worth using overall series: HOUSE_VALUE + total_available - (mortgage + creditcards)
+            const latest = overallRawData[overallRawData.length - 1];
+            const mortgage = Math.abs(Number(latest.total_mortgage_balance || 0));
+            const cc = Math.abs(Number(latest.total_creditcard_balance || 0));
+            const totalNet = Number(latest.total_net_debt || 0) || 0;
+            const assets = totalNet - (mortgage + cc);
+            const netWorth = houseValue + assets - (mortgage + cc);
+            // For change vs last month, compute previous month's net worth if available
+            const latestDate = new Date(latest.snapshot_date);
+            const prevMonthStart = new Date(latestDate.getFullYear(), latestDate.getMonth() - 1, 1);
+            const prevMonthData = overallRawData.filter(d => new Date(d.snapshot_date) < prevMonthStart);
+            const prev = prevMonthData.length > 0 ? prevMonthData[prevMonthData.length - 1] : null;
+            const prevMortgage = prev ? Math.abs(Number(prev.total_mortgage_balance || 0)) : mortgage;
+            const prevCc = prev ? Math.abs(Number(prev.total_creditcard_balance || 0)) : cc;
+            const prevTotalNet = prev ? Number(prev.total_net_debt || 0) : totalNet;
+            const prevAssets = prevTotalNet - (prevMortgage + prevCc);
+            const prevNetWorth = houseValue + prevAssets - (prevMortgage + prevCc);
+            const change = netWorth - prevNetWorth;
+
+            document.getElementById('kpi-total').textContent = fmt.format(netWorth);
+            const changeEl = document.getElementById('kpi-change');
+            changeEl.textContent = `${change >= 0 ? '+' : ''}${fmt.format(change)}`;
+            changeEl.className = change < 0 ? 'font-medium text-red-600' : (change > 0 ? 'font-medium text-emerald-600' : 'font-medium text-slate-600');
+
+            // Equity and LVR relative to house value
+            const equity = netWorth; // net worth already includes house - liabilities + available
+            const lvr = mortgage / houseValue * 100;
+            document.getElementById('kpi-equity').textContent = fmt.format(equity);
+            document.getElementById('kpi-lvr').textContent = `${lvr.toFixed(1)}%`;
+        }
     
     // Interest rate doesn't change based on checkbox
     const weighted = kpiData.weighted_interest_rate != null ? Number(kpiData.weighted_interest_rate) : null;
@@ -380,14 +419,8 @@
   function updatePrincipalPaidKPIs() {
     if (overallRawData.length === 0) return;
     
-    const includeCreditCards = document.getElementById('includeCreditCards').checked;
-    
-    // Calculate series based on checkbox state
-    const series = overallRawData.map(d => {
-      const mortgage = Math.abs(Number(d.total_mortgage_balance || 0));
-      const creditCard = Math.abs(Number(d.total_creditcard_balance || 0));
-      return includeCreditCards ? mortgage + creditCard : mortgage;
-    });
+        // Principal KPIs should always be mortgage-only series so they represent principal paid
+        const series = overallRawData.map(d => Math.abs(Number(d.total_mortgage_balance || 0)));
     
     const first = series[0];
     const current = series[series.length - 1];
@@ -410,12 +443,19 @@
     const rawDates = data.map(d => d.snapshot_date);
     const labels = rawDates.map(d => fmtDate(d));
     
-    const includeCreditCards = document.getElementById('includeCreditCards').checked;
-    const series = data.map(d => {
-      const mortgage = Math.abs(Number(d.total_mortgage_balance || 0));
-      const creditCard = Math.abs(Number(d.total_creditcard_balance || 0));
-      return includeCreditCards ? mortgage + creditCard : mortgage;
-    });
+        const includeOther = document.getElementById('includeCreditCards').checked;
+        const series = data.map(d => {
+            const mortgage = Math.abs(Number(d.total_mortgage_balance || 0));
+            const creditCard = Math.abs(Number(d.total_creditcard_balance || 0));
+            const available = Number(d.total_available || 0) || 0;
+            if (includeOther) {
+                // net worth series: house + other_assets - (mortgage + creditCard)
+                const totalNet = Number(d.total_net_debt || 0) || 0;
+                const assets = totalNet - (mortgage + creditCard);
+                return HOUSE_VALUE + assets - (mortgage + creditCard);
+            }
+            return mortgage;
+        });
     
     // Update the KPIs whenever chart is rendered
     updatePrincipalPaidKPIs();
@@ -433,7 +473,7 @@
       data: { 
           labels, 
           datasets: [{ 
-              label: document.getElementById('includeCreditCards').checked ? 'Total Debt (Mortgage + Credit Cards)' : 'Mortgage Balance Only', 
+              label: document.getElementById('includeCreditCards').checked ? 'Net Worth (House + Other Assets - Debts)' : 'Mortgage Balance Only', 
               data: series, 
               borderColor: '#4f46e5', 
               backgroundColor: gradient, 
@@ -471,8 +511,8 @@
                 bodyFont: { family: 'Inter', size: 13 },
                 padding: 10,
                 cornerRadius: 8,
-                callbacks: { 
-                    label: (ctx) => `Balance: ${fmt.format(ctx.parsed.y)}`
+                    callbacks: { 
+                    label: (ctx) => `${document.getElementById('includeCreditCards').checked ? 'Net worth' : 'Balance'}: ${fmt.format(ctx.parsed.y)}`
                 } 
             } 
         }
@@ -551,18 +591,27 @@
     });
   }
 
-  async function loadAccounts() {
-    const res = await fetch('/api/akahu/accounts');
-    const accounts = await res.json();
-    
-    // Separate loan accounts from credit card accounts using the is_credit_card flag
-    const loanAccounts = accounts.filter(acc => !acc.is_credit_card);
-    const creditCardAccounts = accounts.filter(acc => acc.is_credit_card);
-    
-    const loanContainer = document.getElementById('loanAccountsContainer');
-    const creditCardContainer = document.getElementById('creditCardAccountsContainer');
-    document.getElementById('loan-count').textContent = loanAccounts.length;
-    document.getElementById('creditcard-count').textContent = creditCardAccounts.length;
+    async function loadAccounts() {
+        const res = await fetch('/api/akahu/accounts');
+        const accounts = await res.json();
+
+        // Classify accounts into Loans (LOAN or FLEXI), Credit Cards (is_credit_card), and Other
+        const loanAccounts = accounts.filter(acc => {
+            const t = (acc.account_type || '').toString().toUpperCase();
+            return t === 'LOAN' || t === 'FLEXI';
+        });
+        const creditCardAccounts = accounts.filter(acc => acc.is_credit_card);
+        const otherAccounts = accounts.filter(acc => {
+            const t = (acc.account_type || '').toString().toUpperCase();
+            return !(t === 'LOAN' || t === 'FLEXI' || acc.is_credit_card);
+        });
+
+        const loanContainer = document.getElementById('loanAccountsContainer');
+        const creditCardContainer = document.getElementById('creditCardAccountsContainer');
+        const otherContainer = document.getElementById('otherAccountsContainer');
+        document.getElementById('loan-count').textContent = loanAccounts.length;
+        document.getElementById('creditcard-count').textContent = creditCardAccounts.length;
+        document.getElementById('other-count').textContent = otherAccounts.length;
     
     let totalMonthlyRepayment = 0;
     let totalWeeklyRepayment = 0;
@@ -598,15 +647,20 @@
     document.getElementById('kpi-repayment').textContent = fmt.format(totalMonthlyRepayment);
     document.getElementById('kpi-repayment-weekly').textContent = fmt.format(totalWeeklyRepayment);
 
-    // Render loan accounts
-    loanAccounts.forEach((acc, idx) => {
-      renderAccountCard(acc, idx, loanContainer, palette[idx % palette.length]);
-    });
-    
-    // Render credit card accounts
-    creditCardAccounts.forEach((acc, idx) => {
-      renderAccountCard(acc, idx + loanAccounts.length, creditCardContainer, palette[(idx + loanAccounts.length) % palette.length]);
-    });
+        // Render loan accounts
+        loanAccounts.forEach((acc, idx) => {
+            renderAccountCard(acc, idx, loanContainer, palette[idx % palette.length]);
+        });
+
+        // Render credit card accounts
+        creditCardAccounts.forEach((acc, idx) => {
+            renderAccountCard(acc, idx + loanAccounts.length, creditCardContainer, palette[(idx + loanAccounts.length) % palette.length]);
+        });
+
+        // Render other accounts
+        otherAccounts.forEach((acc, idx) => {
+            renderAccountCard(acc, idx + loanAccounts.length + creditCardAccounts.length, otherContainer, palette[(idx + loanAccounts.length + creditCardAccounts.length) % palette.length]);
+        });
   }
 
   function renderAccountCard(acc, idx, container, color) {

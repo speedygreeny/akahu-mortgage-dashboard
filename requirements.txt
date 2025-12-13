@@ -9,14 +9,8 @@ requests
 python-dotenv
 uvicorn>=0.22.0
 asgiref>=3.9.0
-dagster
-dagster-webserver
-dagster-dbt
-dbt-duckdb
+
+# Optional: include if you intend to run dbt or use additional dbt adapters
+# dbt-core
+# dbt-duckdb
 dlt[duckdb]
-duckdb
-flask
-requests
-python-dotenv
-uvicorn>=0.22.0
-asgiref>=3.9.0

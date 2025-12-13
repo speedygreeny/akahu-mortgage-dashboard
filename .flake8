@@ -1,0 +1,14 @@
+[flake8]
+max-line-length = 140
+exclude =
+    .venv,
+    venv,
+    env,
+    data,
+    dagster_home,
+    .git,
+    dbt_project/target,
+    .github,
+    build,
+    dist,
+    __pycache__

@@ -1,0 +1,8 @@
+__pycache__
+.venv
+venv
+data
+dagster_home
+.git
+*.pyc
+.DS_Store

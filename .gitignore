@@ -1,3 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Data
+/data/
+*.duckdb
+
+# Dagster history and logs
+/dagster_home/history/
+/dagster_home/logs/
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
 __pycache__/
 *.py[cod]
 .venv/
