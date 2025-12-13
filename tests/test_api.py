@@ -3,7 +3,7 @@ import subprocess
 import sys
 import pytest
 
-from dashboard import app as flask_app
+from dashboard.app import app as flask_app
 
 
 def ensure_mock_db():
