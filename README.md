@@ -104,6 +104,3 @@ Notes on publishing
 
 Contributing
 - See `CONTRIBUTING.md` for basic development instructions.
-
-License
-- Add a LICENSE file if you plan to publish (e.g. `LICENSE` with MIT or Apache-2.0).
