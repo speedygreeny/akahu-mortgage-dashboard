@@ -3,6 +3,11 @@ import subprocess
 import sys
 import pytest
 
+# Ensure the repository root is on sys.path so `from dashboard import app` works
+repo_root = os.path.dirname(os.path.dirname(__file__))
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
 from dashboard import app as flask_app
 
 
