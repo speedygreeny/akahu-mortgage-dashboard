@@ -5,6 +5,7 @@ from typing import Iterator, Dict, Any, List
 from datetime import datetime, timezone
 from dagster import asset, AssetExecutionContext
 
+
 def _akahu_headers() -> Dict[str, str]:
     """
     Build headers for Akahu Personal Apps auth using env vars.
@@ -94,6 +95,7 @@ def akahu_source() -> Any:
     balances_res = accounts_res | akahu_account_balances
     yield accounts_res
     yield balances_res
+
 
 @asset(group_name="ingestion", compute_kind="dlt")
 def akahu_raw_data(context: AssetExecutionContext):

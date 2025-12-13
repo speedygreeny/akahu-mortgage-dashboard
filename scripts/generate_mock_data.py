@@ -227,9 +227,7 @@ def main():
     for acc in accounts:
         # prepare values (use duckdb parameterization)
         conn.execute(
-            "INSERT INTO akahu_prod.accounts (" + 
-            ", ".join(acc.keys()) + 
-            ") VALUES (" + ",".join(["?" for _ in acc.keys()]) + ")",
+            "INSERT INTO akahu_prod.accounts (" + ", ".join(acc.keys()) + ") VALUES (" + ",".join(["?" for _ in acc.keys()]) + ")",
             tuple(acc.values()),
         )
 
@@ -244,6 +242,7 @@ def main():
         # batch insert
         cols = list(rows[0].keys())
         # quote any identifier that is a SQL keyword or contains special chars
+
         def quote_ident(c: str) -> str:
             if c.lower() in {"limit"} or not c.isidentifier():
                 return '"' + c + '"'

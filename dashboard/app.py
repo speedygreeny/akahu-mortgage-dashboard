@@ -13,6 +13,7 @@ load_dotenv()
 # Initialize the Flask app
 app = Flask(__name__)
 
+
 # --- Database Connection ---
 def get_db_connection():
     """Establishes a connection to the database."""
@@ -111,11 +112,11 @@ def table(name: str) -> str:
 
     Example: table('fct_mortgage_over_time') -> 'dbt.fct_mortgage_over_time' (if prefix is 'dbt')
     """
-    global SCHEMA_PREFIX
     prefix = SCHEMA_PREFIX if SCHEMA_PREFIX is not None else ''
     if prefix:
         return f"{prefix}.{name}"
     return name
+
 
 # --- Akahu finance APIs ---
 @app.route('/api/akahu/accounts')
@@ -244,7 +245,7 @@ def akahu_loan_kpis():
                     where upper(coalesce(account_type,'')) = 'LOAN' and coalesce(is_credit_card,false) = false
                     order by account_id, snapshot_date desc, _dlt_load_id desc, last_snapshot_at desc
                 ), weighted as (
-                    select 
+                    select
                       sum(abs(b.current_balance)) as total_balance_pos,
                       case when sum(abs(b.current_balance)) > 0
                            then sum((l.loan_interest_rate)::numeric * abs(b.current_balance)) / sum(abs(b.current_balance))
@@ -252,7 +253,7 @@ def akahu_loan_kpis():
                     from {table('dim_loan_accounts')} l
                     join latest_bal b using (account_id)
                 )
-                select 
+                select
                   abs(coalesce((select total_net_debt from curr), 0)) as total_net_debt,
                   abs(coalesce((select total_net_debt from curr), 0)) - abs(coalesce((select total_net_debt from prev), 0)) as monthly_change,
                   (select weighted_rate from weighted) as weighted_interest_rate
@@ -279,6 +280,7 @@ def home():
     """Homepage with links to dashboards."""
     return render_template('home.html')
 
+
 @app.route('/mortgage')
 def mortgage():
     # Allow configuring house/property value via environment variable
@@ -287,6 +289,7 @@ def mortgage():
     except Exception:
         house_value = 1450000.0
     return render_template('mortgage.html', house_value=house_value)
+
 
 @app.route('/health')
 def health():
@@ -323,6 +326,7 @@ def health():
         except Exception:
             pass
         return jsonify({"ok": False, "reason": "db_query_failed", "error": str(e), "db_path": path}), 200
+
 
 # --- Main Execution ---
 if __name__ == '__main__':

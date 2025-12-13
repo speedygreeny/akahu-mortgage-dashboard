@@ -1,8 +1,7 @@
 from pathlib import Path
 
-from dagster import AssetExecutionContext
 from dagster_dbt import DbtCliResource, dbt_assets, DbtProject, DagsterDbtTranslator
-from dagster import AssetKey
+from dagster import AssetExecutionContext, AssetKey
 
 DBT_PROJECT_DIR = Path(__file__).joinpath("..", "..", "..", "dbt_project").resolve()
 dbt_project = DbtProject(project_dir=DBT_PROJECT_DIR)
@@ -14,12 +13,9 @@ dbt_project.prepare_if_dev()
 # try to resolve and read the manifest and raise an error during module import
 # which prevents Dagster from loading the package.
 manifest_path = dbt_project.manifest_path
-manifest_path = dbt_project.manifest_path
 
 # If a dbt manifest exists, use dagster_dbt to generate native dbt-backed assets.
 if manifest_path.exists():
-    from dagster import AssetExecutionContext, AssetKey
-
     # Build a mapping from dbt manifest sources to the single DLT asset
     # `akahu_raw_data` so Dagster knows the dbt models that read those
     # sources depend on the DLT asset. Manifest source node keys look like:
@@ -35,11 +31,8 @@ if manifest_path.exists():
             # This satisfies Dagster's uniqueness requirement while keeping the
             # assets clearly associated with the raw ingestion data.
             if dbt_resource_props and dbt_resource_props.get("resource_type") == "source":
-                # keep values for potential debugging but avoid unused-variable lint errors
-                _pkg = dbt_resource_props.get("package_name") or dbt_resource_props.get("package")
-                _source_name = dbt_resource_props.get("source_name")
-                name = dbt_resource_props.get("name")
                 # Example AssetKey: ["akahu_raw", "accounts"]
+                # pkg and source_name retained for future debugging/logging
                 return AssetKey(["akahu_raw", name])
 
             return super().get_asset_key(dbt_resource_props)
