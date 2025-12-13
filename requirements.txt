@@ -1,3 +1,26 @@
+```plaintext
+dagster
+dagster-webserver
+dagster-dbt
+dbt-duckdb
+dlt[duckdb]
+duckdb
+flask
+requests
+python-dotenv
+uvicorn>=0.22.0
+asgiref>=3.9.0
+
+# Optional: include if you intend to run dbt or use additional dbt adapters
+# dbt-core
+# dbt-duckdb
+dlt[duckdb]
+
+# Added for data migration script
+pandas
+psycopg2-binary
+
+```
 dagster
 dagster-webserver
 dagster-dbt
