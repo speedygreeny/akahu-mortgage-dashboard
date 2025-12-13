@@ -11,7 +11,7 @@ Highlights
 - Visualize with a Flask + Chart.js dashboard
 
 Dashboard
-<img width="100%" alt="Mortgage dashboard screenshot" src="docs/images/mortgage_dashboard.png" />
+<img width="2395" height="1293" alt="image" src="https://github.com/user-attachments/assets/0f83438e-d125-43f3-95db-36e986501b47" />
 
 Requirements
 - Docker & Docker Compose (recommended for full stack) or local Python 3.10+ to run the dashboard and helper scripts.
