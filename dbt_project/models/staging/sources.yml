@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: akahu_raw
+    schema: akahu_prod
+    tables:
+      - name: accounts
+      - name: account_balances

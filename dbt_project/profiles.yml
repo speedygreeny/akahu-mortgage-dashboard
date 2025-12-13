@@ -1,0 +1,7 @@
+akahu_mortgage:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: '/data/akahu.duckdb'
+  schema: 'akahu_prod'

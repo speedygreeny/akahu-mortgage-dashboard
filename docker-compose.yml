@@ -1,0 +1,54 @@
+version: "3.7"
+
+services:
+  dagster_webserver:
+    build: .
+    container_name: dagster_webserver
+    entrypoint: ["/app/scripts/init_dbt_and_exec.sh"]
+    command: ["dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-m", "akahu_dagster"]
+    volumes:
+      - .:/app
+      - ./data:/data
+      - ./dagster_home:/app/dagster_home
+    ports:
+      - "3000:3000"
+    environment:
+      - DAGSTER_HOME=/app/dagster_home
+      - AKAHU_USER_TOKEN=${AKAHU_USER_TOKEN}
+      - AKAHU_APP_TOKEN=${AKAHU_APP_TOKEN}
+      - DUCKDB_PATH=/data/akahu.duckdb
+      - DBT_PROFILES_DIR=/app/dbt_project
+
+  dagster_daemon:
+    build: .
+    container_name: dagster_daemon
+    entrypoint: ["/app/scripts/init_dbt_and_exec.sh"]
+    command: ["dagster-daemon", "run", "-m", "akahu_dagster"]
+    volumes:
+      - .:/app
+      - ./data:/data
+      - ./dagster_home:/app/dagster_home
+    environment:
+      - DAGSTER_HOME=/app/dagster_home
+      - AKAHU_USER_TOKEN=${AKAHU_USER_TOKEN}
+      - AKAHU_APP_TOKEN=${AKAHU_APP_TOKEN}
+      - DUCKDB_PATH=/data/akahu.duckdb
+      - DBT_PROFILES_DIR=/app/dbt_project
+    depends_on:
+      - dagster_webserver
+
+  dashboard:
+    build: .
+    container_name: mortgage_dashboard
+    command: python dashboard/app.py
+    volumes:
+      - .:/app
+      - ./data:/data
+    ports:
+      - "8001:8001"
+    environment:
+      - DUCKDB_PATH=/data/akahu.duckdb
+      - FLASK_DEBUG=1
+
+volumes:
+  data_volume:

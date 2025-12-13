@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mortgage Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+  
+  <!-- Navigation -->
+  <nav class="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
+    <div class="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex">
+          <div class="flex-shrink-0 flex items-center">
+            <svg class="h-8 w-8 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            <span class="ml-2 text-xl font-bold text-slate-900 tracking-tight">Mortgage Tracker</span>
+          </div>
+        </div>
+        <div class="flex items-center space-x-4">
+            <a href="/" class="text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">Home</a>
+            <a href="/properties" class="text-slate-500 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-colors">Properties</a>
+        </div>
+        <!-- Health banner placeholder -->
+        <div id="health-banner" class="hidden items-center mr-4">
+            <span id="health-dot" class="inline-block w-3 h-3 rounded-full bg-gray-300 mr-2"></span>
+            <span id="health-text" class="text-sm text-slate-600">Checking...</span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- KPI Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-8">
+        
+        <!-- Total Mortgage -->
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
+            <div>
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2.5 bg-indigo-50 rounded-full text-indigo-600">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                    </div>
+                    <span class="text-slate-500 font-medium">Total Balance</span>
+                </div>
+                <div id="kpi-total" class="text-3xl font-bold text-slate-900 tracking-tight">--</div>
+            </div>
+            <div class="mt-4 pt-4 border-t border-slate-50 text-sm">
+                <span id="kpi-change" class="font-medium">--</span>
+                <span class="text-slate-400 ml-1">vs last month</span>
+            </div>
+        </div>
+
+        <!-- Weighted Rate -->
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
+            <div>
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2.5 bg-orange-50 rounded-full text-orange-600">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                    </div>
+                    <span class="text-slate-500 font-medium">Weighted Rate</span>
+                </div>
+                <div id="kpi-rate" class="text-3xl font-bold text-slate-900 tracking-tight">--</div>
+            </div>
+            <div class="mt-4 pt-4 border-t border-slate-50 text-sm text-slate-400">
+                Average across all loans
+            </div>
+        </div>
+
+        <!-- Repayments -->
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
+            <div>
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2.5 bg-emerald-50 rounded-full text-emerald-600">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                    <span class="text-slate-500 font-medium">Repayments</span>
+                </div>
+                <div class="flex items-baseline gap-1">
+                    <span id="kpi-repayment" class="text-3xl font-bold text-slate-900 tracking-tight">--</span>
+                    <span class="text-slate-400 text-sm font-medium">/mo</span>
+                </div>
+            </div>
+            <div class="mt-4 pt-4 border-t border-slate-50 text-sm">
+                <span id="kpi-repayment-weekly" class="font-medium text-slate-700">--</span>
+                <span class="text-slate-400 ml-1">/wk</span>
+            </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
+            <div>
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2.5 bg-blue-50 rounded-full text-blue-600">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                        </svg>
+                    </div>
+                    <span class="text-slate-500 font-medium">Principal Paid</span>
+                </div>
+                <div id="kpi-since-first" class="text-3xl font-bold text-slate-900 tracking-tight">--</div>
+            </div>
+            <div class="mt-4 pt-4 border-t border-slate-50 text-sm flex justify-between items-center">
+                <span class="text-slate-400">Since Peak:</span>
+                <span id="kpi-since-peak" class="font-medium text-slate-700">--</span>
+            </div>
+        </div>
+
+        <!-- Equity -->
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow duration-200">
+            <div>
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="p-2.5 bg-teal-50 rounded-full text-teal-600">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <span class="text-slate-500 font-medium">Est. Equity</span>
+                </div>
+                <div id="kpi-equity" class="text-3xl font-bold text-slate-900 tracking-tight">--</div>
+            </div>
+            <div class="mt-4 pt-4 border-t border-slate-50 text-sm">
+                <span id="kpi-lvr" class="font-medium text-slate-700">--</span>
+                <span class="text-slate-400 ml-1">LVR on $1.45m Value</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Chart -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
+        <div class="flex flex-col sm:flex-row justify-between items-start mb-6 gap-4">
+            <div>
+                <h2 class="text-lg font-bold text-slate-900">Overall Debt Balance</h2>
+                <p class="text-sm text-slate-500 mt-1">Track your total debt reduction over time</p>
+            </div>
+            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <label class="flex items-center cursor-pointer group">
+                    <input type="checkbox" id="includeCreditCards" checked onchange="renderOverallChart()" class="w-4 h-4 text-indigo-600 bg-slate-100 border-slate-300 rounded focus:ring-indigo-500 focus:ring-2 cursor-pointer">
+                    <span class="ml-2 text-sm font-medium text-slate-700 group-hover:text-slate-900">Include Credit Cards</span>
+                </label>
+                <div class="bg-slate-100 p-1 rounded-lg flex shadow-inner">
+                    <button onclick="setGranularity('day')" id="btn-day" class="px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200">Daily</button>
+                    <button onclick="setGranularity('week')" id="btn-week" class="px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200">Weekly</button>
+                    <button onclick="setGranularity('month')" id="btn-month" class="px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200">Monthly</button>
+                </div>
+            </div>
+        </div>
+        <div class="h-80 w-full">
+            <canvas id="overallChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Accounts Tabs -->
+    <div class="mb-8">
+        <div class="flex items-center mb-6 border-b border-slate-200">
+            <button onclick="switchTab('loans')" id="tab-loans" class="flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200">
+                <span class="text-lg font-bold">Loan Accounts</span>
+                <span class="ml-3 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600" id="loan-count">--</span>
+            </button>
+            <button onclick="switchTab('creditcards')" id="tab-creditcards" class="flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ml-1">
+                <span class="text-lg font-bold">Credit Cards</span>
+                <span class="ml-3 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-600" id="creditcard-count">--</span>
+            </button>
+        </div>
+
+        <!-- Loan Accounts Tab Content -->
+        <div id="loans-content" class="tab-content">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="loanAccountsContainer">
+                <!-- Loan cards injected here -->
+            </div>
+        </div>
+
+        <!-- Credit Cards Tab Content -->
+        <div id="creditcards-content" class="tab-content hidden">
+            <!-- Credit Card Chart -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-900">Credit Card Balance Over Time</h2>
+                        <p class="text-sm text-slate-500 mt-1">Track your credit card debt over time</p>
+                    </div>
+                </div>
+                <div class="h-80 w-full">
+                    <canvas id="creditCardChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="creditCardAccountsContainer">
+                <!-- Credit card account cards injected here -->
+            </div>
+        </div>
+    </div>
+
+  </main>
+
+  <script>
+  const fmt = new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD' });
+  const palette = ['#4f46e5','#7c3aed','#db2777','#ea580c','#ca8a04','#16a34a']; // Indigo, Violet, Pink, Orange, Yellow, Green
+  
+  let globalGranularity = 'day';
+  let overallRawData = [];
+  let overallChartInstance = null;
+  let creditCardChartInstance = null;
+  let accountCharts = []; // { canvas, data, instance, color }
+  let activeTab = 'loans';
+
+  function switchTab(tab) {
+    activeTab = tab;
+    
+    // Update tab buttons
+    const loansBtn = document.getElementById('tab-loans');
+    const creditCardsBtn = document.getElementById('tab-creditcards');
+    
+    const activeClasses = 'border-indigo-600 text-indigo-600';
+    const inactiveClasses = 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300';
+    
+    if (tab === 'loans') {
+      loansBtn.className = `flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ${activeClasses}`;
+      creditCardsBtn.className = `flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ml-1 ${inactiveClasses}`;
+      document.getElementById('loans-content').classList.remove('hidden');
+      document.getElementById('creditcards-content').classList.add('hidden');
+    } else {
+      loansBtn.className = `flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ${inactiveClasses}`;
+      creditCardsBtn.className = `flex items-center px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 ml-1 ${activeClasses}`;
+      document.getElementById('loans-content').classList.add('hidden');
+      document.getElementById('creditcards-content').classList.remove('hidden');
+      // Render credit card chart when tab is shown
+      renderCreditCardChart();
+    }
+  }
+
+  function fmtDate(val) {
+    if (!val) return 'N/A';
+    const str = typeof val === 'string' ? val : String(val);
+    const m = str.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (m) {
+      const [_, y, mo, d] = m;
+      return `${d}/${mo}/${y}`;
+    }
+    const d = new Date(str);
+    if (!isNaN(d.valueOf())) {
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yy = d.getFullYear();
+      return `${dd}/${mm}/${yy}`;
+    }
+    return str;
+  }
+
+  function getWeekKey(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const year = d.getUTCFullYear();
+    const weekNo = Math.ceil((((d - new Date(Date.UTC(year, 0, 1))) / 86400000) + 1) / 7);
+    return `${year}-W${String(weekNo).padStart(2, '0')}`;
+  }
+
+  function aggregateData(data, granularity) {
+    if (granularity === 'day') return data;
+    const groups = {};
+    data.forEach(d => {
+      const date = new Date(d.snapshot_date);
+      let key;
+      if (granularity === 'month') {
+        key = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
+      } else if (granularity === 'week') {
+        key = getWeekKey(date);
+      }
+      groups[key] = d;
+    });
+    return Object.values(groups);
+  }
+
+  function setGranularity(g) {
+    globalGranularity = g;
+    const btnClassActive = 'bg-white text-indigo-600 shadow-sm';
+    const btnClassInactive = 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50';
+    
+    document.getElementById('btn-day').className = `px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${g === 'day' ? btnClassActive : btnClassInactive}`;
+    document.getElementById('btn-week').className = `px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${g === 'week' ? btnClassActive : btnClassInactive}`;
+    document.getElementById('btn-month').className = `px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${g === 'month' ? btnClassActive : btnClassInactive}`;
+    
+    renderOverallChart();
+    renderCreditCardChart();
+    accountCharts.forEach(ac => renderAccountChart(ac));
+  }
+
+  let kpiData = null; // Store KPI data globally so we can recalculate on checkbox change
+
+  async function loadKpis() {
+    const r = await fetch('/api/akahu/loan_kpis');
+    kpiData = await r.json();
+    updateTotalBalanceKPIs();
+  }
+
+  function updateTotalBalanceKPIs() {
+    if (!kpiData) return;
+    
+    const includeCreditCards = document.getElementById('includeCreditCards').checked;
+    
+    // If checkbox is unchecked, we need to get mortgage-only data
+    // The API returns net_debt (mortgage + CC), so we need to fetch mortgage_over_time to get separate values
+    if (!includeCreditCards && overallRawData.length > 0) {
+      const latest = overallRawData[overallRawData.length - 1];
+      const total = Math.abs(Number(latest.total_mortgage_balance || 0));
+      
+      // Find previous month's data
+      const latestDate = new Date(latest.snapshot_date);
+      const prevMonthStart = new Date(latestDate.getFullYear(), latestDate.getMonth() - 1, 1);
+      const prevMonthData = overallRawData.filter(d => {
+        const date = new Date(d.snapshot_date);
+        return date < prevMonthStart;
+      });
+      const prevTotal = prevMonthData.length > 0 
+        ? Math.abs(Number(prevMonthData[prevMonthData.length - 1].total_mortgage_balance || 0))
+        : total;
+      const change = total - prevTotal;
+      
+      document.getElementById('kpi-total').textContent = fmt.format(total);
+      const changeEl = document.getElementById('kpi-change');
+      changeEl.textContent = `${change >= 0 ? '+' : ''}${fmt.format(change)}`;
+      changeEl.className = change < 0 ? 'font-medium text-emerald-600' : (change > 0 ? 'font-medium text-red-600' : 'font-medium text-slate-600');
+      
+      // Equity Calculation
+      const houseValue = 1450000;
+      const equity = houseValue - total;
+      const lvr = (total / houseValue) * 100;
+      
+      document.getElementById('kpi-equity').textContent = fmt.format(equity);
+      document.getElementById('kpi-lvr').textContent = `${lvr.toFixed(1)}%`;
+    } else {
+      // Use net debt (includes credit cards)
+      const total = Number(kpiData.total_net_debt || kpiData.total_mortgage || 0);
+      const change = Number(kpiData.monthly_change || 0);
+      
+      document.getElementById('kpi-total').textContent = fmt.format(total);
+      const changeEl = document.getElementById('kpi-change');
+      changeEl.textContent = `${change >= 0 ? '+' : ''}${fmt.format(change)}`;
+      changeEl.className = change < 0 ? 'font-medium text-emerald-600' : (change > 0 ? 'font-medium text-red-600' : 'font-medium text-slate-600');
+      
+      // Equity Calculation
+      const houseValue = 1450000;
+      const equity = houseValue - total;
+      const lvr = (total / houseValue) * 100;
+      
+      document.getElementById('kpi-equity').textContent = fmt.format(equity);
+      document.getElementById('kpi-lvr').textContent = `${lvr.toFixed(1)}%`;
+    }
+    
+    // Interest rate doesn't change based on checkbox
+    const weighted = kpiData.weighted_interest_rate != null ? Number(kpiData.weighted_interest_rate) : null;
+    document.getElementById('kpi-rate').textContent = weighted != null ? `${weighted.toFixed(2)}%` : 'N/A';
+  }
+
+  async function loadOverall() {
+    const res = await fetch('/api/akahu/mortgage_over_time');
+    overallRawData = await res.json();
+    
+    updatePrincipalPaidKPIs();
+    renderOverallChart();
+    renderCreditCardChart();
+  }
+
+  function updatePrincipalPaidKPIs() {
+    if (overallRawData.length === 0) return;
+    
+    const includeCreditCards = document.getElementById('includeCreditCards').checked;
+    
+    // Calculate series based on checkbox state
+    const series = overallRawData.map(d => {
+      const mortgage = Math.abs(Number(d.total_mortgage_balance || 0));
+      const creditCard = Math.abs(Number(d.total_creditcard_balance || 0));
+      return includeCreditCards ? mortgage + creditCard : mortgage;
+    });
+    
+    const first = series[0];
+    const current = series[series.length - 1];
+    const peak = Math.max(...series);
+    
+    const changeSinceFirst = current - first;
+    const changeSincePeak = current - peak;
+    
+    const sinceFirstEl = document.getElementById('kpi-since-first');
+    sinceFirstEl.textContent = `${changeSinceFirst >= 0 ? '+' : ''}${fmt.format(changeSinceFirst)}`;
+    sinceFirstEl.className = `text-3xl font-bold tracking-tight ${changeSinceFirst < 0 ? 'text-emerald-600' : (changeSinceFirst > 0 ? 'text-red-600' : 'text-slate-900')}`;
+
+    const sincePeakEl = document.getElementById('kpi-since-peak');
+    sincePeakEl.textContent = `${changeSincePeak >= 0 ? '+' : ''}${fmt.format(changeSincePeak)}`;
+    sincePeakEl.className = `font-medium ${changeSincePeak < 0 ? 'text-emerald-600' : (changeSincePeak > 0 ? 'text-red-600' : 'text-slate-700')}`;
+  }
+
+  function renderOverallChart() {
+    const data = aggregateData(overallRawData, globalGranularity);
+    const rawDates = data.map(d => d.snapshot_date);
+    const labels = rawDates.map(d => fmtDate(d));
+    
+    const includeCreditCards = document.getElementById('includeCreditCards').checked;
+    const series = data.map(d => {
+      const mortgage = Math.abs(Number(d.total_mortgage_balance || 0));
+      const creditCard = Math.abs(Number(d.total_creditcard_balance || 0));
+      return includeCreditCards ? mortgage + creditCard : mortgage;
+    });
+    
+    // Update the KPIs whenever chart is rendered
+    updatePrincipalPaidKPIs();
+    updateTotalBalanceKPIs();
+    
+    if (overallChartInstance) overallChartInstance.destroy();
+    
+    const ctx = document.getElementById('overallChart').getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(79, 70, 229, 0.2)');
+    gradient.addColorStop(1, 'rgba(79, 70, 229, 0)');
+
+    overallChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: { 
+          labels, 
+          datasets: [{ 
+              label: document.getElementById('includeCreditCards').checked ? 'Total Debt (Mortgage + Credit Cards)' : 'Mortgage Balance Only', 
+              data: series, 
+              borderColor: '#4f46e5', 
+              backgroundColor: gradient, 
+              borderWidth: 2,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              fill: true,
+              tension: 0.1
+          }] 
+      },
+      options: { 
+        responsive: true, 
+        maintainAspectRatio: false,
+        interaction: {
+            mode: 'index',
+            intersect: false,
+        },
+        scales: { 
+            y: { 
+                beginAtZero: false, 
+                grace: '5%',
+                grid: { borderDash: [2, 4], color: '#e2e8f0' },
+                ticks: { callback: (v) => fmt.format(v), font: { family: 'Inter' } } 
+            },
+            x: {
+                grid: { display: false },
+                ticks: { font: { family: 'Inter' } }
+            }
+        },
+        plugins: { 
+            legend: { display: false },
+            tooltip: { 
+                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                titleFont: { family: 'Inter', size: 13 },
+                bodyFont: { family: 'Inter', size: 13 },
+                padding: 10,
+                cornerRadius: 8,
+                callbacks: { 
+                    label: (ctx) => `Balance: ${fmt.format(ctx.parsed.y)}`
+                } 
+            } 
+        }
+      }
+    });
+  }
+
+  function renderCreditCardChart() {
+    // Filter to only include data points where credit card balance exists and is non-zero
+    const filteredData = overallRawData.filter(d => {
+      const ccBalance = Number(d.total_creditcard_balance || 0);
+      return ccBalance !== 0; // Include both positive and negative non-zero values
+    });
+    
+    const data = aggregateData(filteredData, globalGranularity);
+    const rawDates = data.map(d => d.snapshot_date);
+    const labels = rawDates.map(d => fmtDate(d));
+    const series = data.map(d => Math.abs(Number(d.total_creditcard_balance || 0)));
+    
+    if (creditCardChartInstance) creditCardChartInstance.destroy();
+    
+    const ctx = document.getElementById('creditCardChart').getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(219, 39, 119, 0.2)');
+    gradient.addColorStop(1, 'rgba(219, 39, 119, 0)');
+
+    creditCardChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: { 
+          labels, 
+          datasets: [{ 
+              label: 'Credit Card Balance', 
+              data: series, 
+              borderColor: '#db2777', 
+              backgroundColor: gradient, 
+              borderWidth: 2,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              fill: true,
+              tension: 0.1
+          }] 
+      },
+      options: { 
+        responsive: true, 
+        maintainAspectRatio: false,
+        interaction: {
+            mode: 'index',
+            intersect: false,
+        },
+        scales: { 
+            y: { 
+                beginAtZero: true, 
+                grace: '5%',
+                grid: { borderDash: [2, 4], color: '#e2e8f0' },
+                ticks: { callback: (v) => fmt.format(v), font: { family: 'Inter' } } 
+            },
+            x: {
+                grid: { display: false },
+                ticks: { font: { family: 'Inter' } }
+            }
+        },
+        plugins: { 
+            legend: { display: false },
+            tooltip: { 
+                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                titleFont: { family: 'Inter', size: 13 },
+                bodyFont: { family: 'Inter', size: 13 },
+                padding: 10,
+                cornerRadius: 8,
+                callbacks: { 
+                    label: (ctx) => `Balance: ${fmt.format(ctx.parsed.y)}`
+                } 
+            } 
+        }
+      }
+    });
+  }
+
+  async function loadAccounts() {
+    const res = await fetch('/api/akahu/accounts');
+    const accounts = await res.json();
+    
+    // Separate loan accounts from credit card accounts using the is_credit_card flag
+    const loanAccounts = accounts.filter(acc => !acc.is_credit_card);
+    const creditCardAccounts = accounts.filter(acc => acc.is_credit_card);
+    
+    const loanContainer = document.getElementById('loanAccountsContainer');
+    const creditCardContainer = document.getElementById('creditCardAccountsContainer');
+    document.getElementById('loan-count').textContent = loanAccounts.length;
+    document.getElementById('creditcard-count').textContent = creditCardAccounts.length;
+    
+    let totalMonthlyRepayment = 0;
+    let totalWeeklyRepayment = 0;
+
+    loanAccounts.forEach(acc => {
+        if (acc.repayment_next_amount != null) {
+            let amountStr = String(acc.repayment_next_amount).replace(/[^0-9.-]+/g,"");
+            const amount = Number(amountStr);
+            const freq = (acc.repayment_frequency || '').toUpperCase().trim();
+            if (!isNaN(amount)) {
+                let monthly = 0;
+                let weekly = 0;
+                
+                if (freq === 'WEEKLY') {
+                    weekly = amount;
+                    monthly = amount * 52 / 12;
+                } else if (freq === 'FORTNIGHTLY') {
+                    weekly = amount / 2;
+                    monthly = amount * 26 / 12;
+                } else if (freq === 'MONTHLY') {
+                    weekly = amount * 12 / 52;
+                    monthly = amount;
+                } else if (freq === 'YEARLY') {
+                    weekly = amount / 52;
+                    monthly = amount / 12;
+                }
+                
+                totalMonthlyRepayment += monthly;
+                totalWeeklyRepayment += weekly;
+            }
+        }
+    });
+    document.getElementById('kpi-repayment').textContent = fmt.format(totalMonthlyRepayment);
+    document.getElementById('kpi-repayment-weekly').textContent = fmt.format(totalWeeklyRepayment);
+
+    // Render loan accounts
+    loanAccounts.forEach((acc, idx) => {
+      renderAccountCard(acc, idx, loanContainer, palette[idx % palette.length]);
+    });
+    
+    // Render credit card accounts
+    creditCardAccounts.forEach((acc, idx) => {
+      renderAccountCard(acc, idx + loanAccounts.length, creditCardContainer, palette[(idx + loanAccounts.length) % palette.length]);
+    });
+  }
+
+  function renderAccountCard(acc, idx, container, color) {
+      const card = document.createElement('div');
+      card.className = 'bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow duration-300 flex flex-col';
+      card.innerHTML = `
+        <div class="p-6 border-b border-slate-50">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-900">${acc.account_name}</h3>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 mt-1 border border-indigo-100">
+                        ${acc.account_type}
+                    </span>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm text-slate-500 font-medium">Current Balance</p>
+                    <p class="text-2xl font-bold current-balance tracking-tight text-slate-900">--</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="p-6 grid grid-cols-2 gap-y-5 gap-x-6 text-sm">
+            <div>
+                <p class="text-slate-400 text-xs uppercase tracking-wider font-bold">Interest Rate</p>
+                <p class="font-semibold text-slate-900 mt-1 text-base">${acc.loan_interest_rate ?? 'N/A'}% <span class="text-slate-400 font-normal text-sm">(${acc.loan_interest_type ?? 'N/A'})</span></p>
+            </div>
+            <div>
+                <p class="text-slate-400 text-xs uppercase tracking-wider font-bold">Fix Expires</p>
+                <p class="font-semibold text-slate-900 mt-1 text-base">${fmtDate(acc.loan_interest_expires_at)}</p>
+            </div>
+            <div>
+                <p class="text-slate-400 text-xs uppercase tracking-wider font-bold">Repayment</p>
+                <p class="font-semibold text-slate-900 mt-1 text-base">${acc.repayment_frequency ?? 'N/A'}</p>
+            </div>
+            <div>
+                <p class="text-slate-400 text-xs uppercase tracking-wider font-bold">Next Amount</p>
+                <p class="font-semibold text-slate-900 mt-1 text-base">${acc.repayment_next_amount != null ? fmt.format(acc.repayment_next_amount) : 'N/A'}</p>
+            </div>
+            <div>
+                <p class="text-slate-400 text-xs uppercase tracking-wider font-bold">Next Date</p>
+                <p class="font-semibold text-slate-900 mt-1 text-base">${fmtDate(acc.repayment_next_date)}</p>
+            </div>
+            <div>
+                <p class="text-slate-400 text-xs uppercase tracking-wider font-bold">Maturity</p>
+                <p class="font-semibold text-slate-900 mt-1 text-base">${fmtDate(acc.loan_matures_at)}</p>
+            </div>
+        </div>
+        
+        <div class="h-48 w-full mt-auto bg-slate-50 p-4 border-t border-slate-100">
+            <canvas></canvas>
+        </div>
+      `;
+      container.appendChild(card);
+      const canvas = card.querySelector('canvas');
+      
+      fetch(`/api/akahu/account_balances/${encodeURIComponent(acc.account_id)}`).then(r=>r.json()).then(bal=>{
+        const color = palette[idx % palette.length];
+        const currentEl = card.querySelector('.current-balance');
+        const latest = bal && bal.length ? Math.abs(Number(bal[bal.length-1].current_balance || 0)) : null;
+        currentEl.textContent = latest != null ? fmt.format(latest) : 'N/A';
+        currentEl.style.color = color;
+        
+        const chartObj = { canvas, data: bal, instance: null, color };
+        accountCharts.push(chartObj);
+        renderAccountChart(chartObj);
+      });
+  }
+
+  function renderAccountChart(chartObj) {
+      const { canvas, data, color } = chartObj;
+      const aggData = aggregateData(data, globalGranularity);
+      
+      if (chartObj.instance) chartObj.instance.destroy();
+      
+      const ctx = canvas.getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+      gradient.addColorStop(0, color + '33'); // 20% opacity
+      gradient.addColorStop(1, color + '00'); // 0% opacity
+
+      chartObj.instance = new Chart(ctx, {
+        type: 'line',
+          data: { 
+            labels: aggData.map(b => fmtDate(b.snapshot_date)), 
+            datasets: [{ 
+              label: 'Outstanding Balance', 
+              data: aggData.map(b => Math.abs(Number(b.current_balance || 0))), 
+              borderColor: color, 
+              backgroundColor: gradient,
+              borderWidth: 2,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              fill: true,
+              tension: 0.1
+            }]
+          },
+          options: { 
+            responsive: true, 
+            maintainAspectRatio: false,
+            scales: { 
+                y: { 
+                    beginAtZero: false,
+                    grace: '5%',
+                    ticks: { callback: (v) => fmt.format(v), font: { size: 10 } },
+                    grid: { display: false }
+                },
+                x: { display: false }
+            },
+            plugins: { 
+                legend: { display: false },
+                tooltip: { 
+                    callbacks: { 
+                        label: (ctx) => `${fmt.format(ctx.parsed.y)}` 
+                    } 
+                } 
+            }
+          }
+      });
+  }
+
+    // Health check: fetch /health before loading heavy data. If unhealthy, show banner and avoid rendering charts.
+    async function checkHealthAndLoad() {
+        try {
+            const r = await fetch('/health');
+            const j = await r.json();
+            const banner = document.getElementById('health-banner');
+            const dot = document.getElementById('health-dot');
+            const txt = document.getElementById('health-text');
+            banner.classList.remove('hidden');
+            if (j && j.ok) {
+                dot.className = 'inline-block w-3 h-3 rounded-full bg-emerald-500 mr-2';
+                txt.textContent = `OK (snapshot: ${j.latest_snapshot_date || 'n/a'})`;
+                // Proceed to load data
+                await loadKpis();
+                await loadOverall();
+                await loadAccounts();
+                switchTab('loans'); // Initialize tabs
+            } else {
+                dot.className = 'inline-block w-3 h-3 rounded-full bg-red-500 mr-2';
+                txt.textContent = `Unhealthy: ${j && j.reason ? j.reason : 'unknown'}`;
+                // Optionally hide heavy UI elements to avoid JS errors
+                document.querySelectorAll('canvas').forEach(c => c.style.display = 'none');
+            }
+        } catch (err) {
+            const banner = document.getElementById('health-banner');
+            const dot = document.getElementById('health-dot');
+            const txt = document.getElementById('health-text');
+            banner.classList.remove('hidden');
+            dot.className = 'inline-block w-3 h-3 rounded-full bg-red-500 mr-2';
+            txt.textContent = 'Health check failed';
+            document.querySelectorAll('canvas').forEach(c => c.style.display = 'none');
+            console.error('Health check failed', err);
+        }
+    }
+
+    checkHealthAndLoad();
+  </script>
+</body>
+</html>
