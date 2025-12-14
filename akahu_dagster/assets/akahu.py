@@ -1,8 +1,10 @@
 import os
 import dlt
 import requests
+import logging
 from typing import Iterator, Dict, Any, List
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from dagster import asset, AssetExecutionContext
 
 
@@ -42,7 +44,41 @@ def akahu_accounts() -> Iterator[Dict[str, Any]]:
     """
     Loads Akahu accounts metadata (merged on Akahu account _id).
     """
-    for acc in _get_accounts():
+    # materialize accounts to allow logging of counts and refreshed timestamps
+    accounts = _get_accounts()
+    try:
+        accounts = list(accounts)
+    except TypeError:
+        # if _get_accounts already returned a list, this will still work
+        pass
+
+    # compute simple metrics for logging
+    count = len(accounts) if hasattr(accounts, "__len__") else sum(1 for _ in accounts)
+    refreshed_vals = [
+        (a.get("refreshed") or {}).get("balance") for a in accounts if a
+    ]
+    latest_refreshed = None
+    parsed_dates: List[datetime] = []
+    for v in refreshed_vals:
+        if not v:
+            continue
+        try:
+            parsed = datetime.fromisoformat(v.replace("Z", "+00:00"))
+            parsed_dates.append(parsed)
+        except Exception:
+            # keep original string if parsing fails
+            continue
+    if parsed_dates:
+        latest_refreshed = max(parsed_dates).isoformat()
+    else:
+        # fall back to raw string if any
+        latest_refreshed = max((v for v in refreshed_vals if v), default=None)
+
+    logger = logging.getLogger(__name__)
+    logger.info("Akahu accounts fetched: %d", count)
+    logger.info("Latest account 'refreshed.balance' timestamp: %s", latest_refreshed)
+
+    for acc in accounts:
         # ensure key presence for merge
         if acc and acc.get("_id"):
             yield acc
@@ -64,13 +100,28 @@ def akahu_account_balances(account: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
         return
 
     bal = account.get("balance") or {}
-    # Use UTC date for snapshot key for stability across timezones
-    snapshot_dt = datetime.now(timezone.utc)
-    snapshot_date = snapshot_dt.date().isoformat()
+    # Use UTC for `snapshot_at` (stable canonical timestamp) but derive the
+    # human-readable `snapshot_date` in the user's local timezone (NZ) so the
+    # dashboard shows the expected local date.
+    snapshot_dt_utc = datetime.now(timezone.utc)
+    try:
+        nz_tz = ZoneInfo("Pacific/Auckland")
+        snapshot_dt_local = snapshot_dt_utc.astimezone(nz_tz)
+    except Exception:
+        # If zoneinfo isn't available for some reason, fall back to UTC date
+        snapshot_dt_local = snapshot_dt_utc
+
+    snapshot_date = snapshot_dt_local.date().isoformat()
+
+    # Log the snapshot timestamps (UTC and NZ local date) once to avoid noisy per-account logs
+    if not hasattr(akahu_account_balances, "_snapshot_logged"):
+        logger = logging.getLogger(__name__)
+        logger.info("Creating Akahu account balance snapshot: snapshot_at(UTC)=%s, snapshot_date(NZ)=%s", snapshot_dt_utc.isoformat(), snapshot_date)
+        setattr(akahu_account_balances, "_snapshot_logged", True)
 
     yield {
         "account_id": account_id,
-        "snapshot_at": snapshot_dt.isoformat(),
+        "snapshot_at": snapshot_dt_utc.isoformat(),
         "snapshot_date": snapshot_date,
         "account_name": account.get("name"),
         "account_type": account.get("type"),
@@ -110,4 +161,8 @@ def akahu_raw_data(context: AssetExecutionContext):
 
     src = akahu_source()
     load_info = pipeline.run(src)
-    context.log.info(load_info)
+
+    # Log the raw load_info to Dagster logs for visibility and also a concise summary
+    context.log.info("DLT pipeline run result: %s", load_info)
+    logger = logging.getLogger(__name__)
+    logger.info("DLT pipeline run completed. run_info: %s", load_info)

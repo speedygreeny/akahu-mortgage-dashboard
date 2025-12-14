@@ -32,8 +32,12 @@ if manifest_path.exists():
             # assets clearly associated with the raw ingestion data.
             if dbt_resource_props and dbt_resource_props.get("resource_type") == "source":
                 # Example AssetKey: ["akahu_raw", "accounts"]
-                # pkg and source_name retained for future debugging/logging
-                return AssetKey(["akahu_raw", name])
+                # Use the properties provided for this specific dbt resource
+                # rather than relying on an outer-scope `name` variable which
+                # could lead to collisions.
+                table_name = dbt_resource_props.get("name") or dbt_resource_props.get("table")
+                if table_name:
+                    return AssetKey(["akahu_raw", table_name])
 
             return super().get_asset_key(dbt_resource_props)
 
@@ -73,7 +77,9 @@ if manifest_path.exists():
             # graph-level dependency.
             return None
 
-    source_assets.append((name, _src_asset))
+        # Append each created source asset inside the loop so we keep a
+        # separate tuple for every source found in the manifest.
+        source_assets.append((name, _src_asset))
 
     @dbt_assets(manifest=manifest_path, dagster_dbt_translator=translator)
     def dbt_models(context: AssetExecutionContext, dbt: DbtCliResource):

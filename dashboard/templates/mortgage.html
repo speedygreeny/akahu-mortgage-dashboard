@@ -371,23 +371,18 @@
       document.getElementById('kpi-equity').textContent = fmt.format(equity);
       document.getElementById('kpi-lvr').textContent = `${lvr.toFixed(1)}%`;
         } else if (overallRawData.length > 0) {
-            // Compute net worth using overall series: HOUSE_VALUE + total_available - (mortgage + creditcards)
+            // Compute net worth directly from signed total_net_debt: net worth = HOUSE + total_net_debt
             const latest = overallRawData[overallRawData.length - 1];
-            const mortgage = Math.abs(Number(latest.total_mortgage_balance || 0));
-            const cc = Math.abs(Number(latest.total_creditcard_balance || 0));
             const totalNet = Number(latest.total_net_debt || 0) || 0;
-            const assets = totalNet - (mortgage + cc);
-            const netWorth = houseValue + assets - (mortgage + cc);
+            const netWorth = HOUSE_VALUE + totalNet;
+
             // For change vs last month, compute previous month's net worth if available
             const latestDate = new Date(latest.snapshot_date);
             const prevMonthStart = new Date(latestDate.getFullYear(), latestDate.getMonth() - 1, 1);
             const prevMonthData = overallRawData.filter(d => new Date(d.snapshot_date) < prevMonthStart);
             const prev = prevMonthData.length > 0 ? prevMonthData[prevMonthData.length - 1] : null;
-            const prevMortgage = prev ? Math.abs(Number(prev.total_mortgage_balance || 0)) : mortgage;
-            const prevCc = prev ? Math.abs(Number(prev.total_creditcard_balance || 0)) : cc;
             const prevTotalNet = prev ? Number(prev.total_net_debt || 0) : totalNet;
-            const prevAssets = prevTotalNet - (prevMortgage + prevCc);
-            const prevNetWorth = houseValue + prevAssets - (prevMortgage + prevCc);
+            const prevNetWorth = HOUSE_VALUE + prevTotalNet;
             const change = netWorth - prevNetWorth;
 
             document.getElementById('kpi-total').textContent = fmt.format(netWorth);
@@ -396,8 +391,9 @@
             changeEl.className = change < 0 ? 'font-medium text-red-600' : (change > 0 ? 'font-medium text-emerald-600' : 'font-medium text-slate-600');
 
             // Equity and LVR relative to house value
-            const equity = netWorth; // net worth already includes house - liabilities + available
-            const lvr = mortgage / houseValue * 100;
+            const equity = netWorth; // net worth already includes house + account balances
+            const mortgage = Math.abs(Number(latest.total_mortgage_balance || 0));
+            const lvr = mortgage / HOUSE_VALUE * 100;
             document.getElementById('kpi-equity').textContent = fmt.format(equity);
             document.getElementById('kpi-lvr').textContent = `${lvr.toFixed(1)}%`;
         }
@@ -446,13 +442,10 @@
         const includeOther = document.getElementById('includeCreditCards').checked;
         const series = data.map(d => {
             const mortgage = Math.abs(Number(d.total_mortgage_balance || 0));
-            const creditCard = Math.abs(Number(d.total_creditcard_balance || 0));
-            const available = Number(d.total_available || 0) || 0;
             if (includeOther) {
-                // net worth series: house + other_assets - (mortgage + creditCard)
+                // net worth series: house + signed total_net_debt
                 const totalNet = Number(d.total_net_debt || 0) || 0;
-                const assets = totalNet - (mortgage + creditCard);
-                return HOUSE_VALUE + assets - (mortgage + creditCard);
+                return HOUSE_VALUE + totalNet;
             }
             return mortgage;
         });
