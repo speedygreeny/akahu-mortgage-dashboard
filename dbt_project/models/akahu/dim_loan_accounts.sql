@@ -8,6 +8,8 @@ with acc as (
     row_number() over (partition by account_id order by _dlt_load_id desc) as rn
   from acc
 )
+{% set excluded = var('excluded_connections', []) | map('lower') | list %}
+
 select
   account_id,
   account_name,
@@ -28,3 +30,6 @@ from latest
 where rn = 1
   and upper(coalesce(account_type,'')) = 'LOAN'
   and coalesce(is_credit_card, false) = false
+  {% if excluded %}
+  and lower(coalesce(connection_name,'')) not in ({{ "'" ~ excluded | join("','") ~ "'" }})
+  {% endif %}

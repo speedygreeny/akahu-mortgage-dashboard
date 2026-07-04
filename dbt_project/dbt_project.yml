@@ -16,6 +16,12 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
+vars:
+  # Akahu connection names to exclude from mortgage/loan rollups.
+  # Why: ASB business account is connected only to power the GST page;
+  # leaving it in mortgage rollups inflates net_debt and pollutes account lists.
+  excluded_connections: ['ASB']
+
 models:
   akahu_mortgage:
     akahu:

@@ -1,6 +1,9 @@
+import csv
+import io
 import os
 import duckdb
-from flask import Flask, jsonify, render_template
+from datetime import date
+from flask import Flask, jsonify, render_template, request, Response
 from dotenv import load_dotenv
 import logging
 
@@ -12,6 +15,20 @@ load_dotenv()
 
 # Initialize the Flask app
 app = Flask(__name__)
+
+
+def _parse_csv_env(name: str, default: set[str]) -> set[str]:
+    raw = os.environ.get(name)
+    if not raw:
+        return set(default)
+    return {v.strip() for v in raw.split(',') if v.strip()}
+
+
+# Connections excluded from the mortgage dashboard (e.g. ASB business account
+# that drives only the GST page). Override with EXCLUDED_CONNECTIONS=ASB,...
+EXCLUDED_CONNECTIONS = _parse_csv_env('EXCLUDED_CONNECTIONS', {'ASB'})
+# Connections used to populate the GST page account picker.
+GST_CONNECTIONS = _parse_csv_env('GST_CONNECTIONS', {'ASB'})
 
 
 # --- Database Connection ---
@@ -126,7 +143,14 @@ def akahu_accounts():
     if conn:
         try:
             cur = conn.cursor()
-            # Query from staging to get ALL accounts, then get latest version per account
+            # Query from staging to get ALL accounts, then get latest version per account.
+            # Filter out excluded connections (e.g. ASB business account driving GST only).
+            excluded = list(EXCLUDED_CONNECTIONS)
+            placeholders = ','.join(['?'] * len(excluded)) if excluded else ''
+            exclude_clause = (
+                f"and lower(coalesce(connection_name, '')) not in ({placeholders})"
+                if excluded else ''
+            )
             cur.execute(f"""
                 with latest as (
                     select *,
@@ -140,8 +164,9 @@ def akahu_accounts():
                     repayment_frequency, repayment_next_date, repayment_next_amount
                 from latest
                 where rn = 1
+                  {exclude_clause}
                 order by account_name
-            """)
+            """, [c.lower() for c in excluded])
             cols = [d[0] for d in cur.description]
             rows = [dict(zip(cols, r)) for r in cur.fetchall()]
             cur.close()
@@ -274,11 +299,219 @@ def akahu_loan_kpis():
     return jsonify({"error": "Database connection failed"}), 500
 
 
+# --- GST APIs ---
+def _current_gst_period(today: date) -> tuple[date, date]:
+    """Return start/end dates of NZ 2-monthly GST period containing today
+    (Jan-Feb, Mar-Apr, May-Jun, Jul-Aug, Sep-Oct, Nov-Dec)."""
+    from datetime import timedelta as _td
+    start_month = today.month - ((today.month - 1) % 2)
+    start = date(today.year, start_month, 1)
+    end_month = start_month + 1
+    end_year = today.year
+    if end_month == 12:
+        next_first = date(end_year + 1, 1, 1)
+    else:
+        next_first = date(end_year, end_month + 1, 1)
+    end = next_first - _td(days=1)
+    return start, end
+
+
+def _has_transactions_view(conn) -> bool:
+    cur = conn.cursor()
+    prefix = SCHEMA_PREFIX or 'main'
+    cur.execute(
+        "select count(*) from information_schema.tables "
+        "where table_schema = ? and table_name = 'stg_akahu_transactions'",
+        (prefix,),
+    )
+    row = cur.fetchone()
+    cur.close()
+    return bool(row and row[0])
+
+
+def _query_gst_transactions(conn, account_id: str, start: str, end: str):
+    if not _has_transactions_view(conn):
+        return [], None, None
+    cur = conn.cursor()
+    cur.execute(f"""
+        select txn_date, txn_at, description, amount, balance, txn_type
+        from {table('stg_akahu_transactions')}
+        where account_id = ?
+          and txn_date >= ?::date
+          and txn_date <= ?::date
+        order by txn_at, transaction_id
+    """, (account_id, start, end))
+    cols = [d[0] for d in cur.description]
+    txns = [dict(zip(cols, r)) for r in cur.fetchall()]
+
+    cur.execute(f"""
+        select balance from {table('stg_akahu_transactions')}
+        where account_id = ? and txn_date < ?::date and balance is not null
+        order by txn_at desc, transaction_id desc limit 1
+    """, (account_id, start))
+    row = cur.fetchone()
+    opening = float(row[0]) if row and row[0] is not None else None
+
+    cur.execute(f"""
+        select balance from {table('stg_akahu_transactions')}
+        where account_id = ? and txn_date <= ?::date and balance is not null
+        order by txn_at desc, transaction_id desc limit 1
+    """, (account_id, end))
+    row = cur.fetchone()
+    closing = float(row[0]) if row and row[0] is not None else None
+
+    # Fallback to stg_akahu_account_balances if a txn-level balance isn't available
+    # (ASB is excluded from fct_account_daily_balances so we use the staging view
+    # which still carries it).
+    if opening is None or closing is None:
+        cur.execute(f"""
+            select snapshot_date, current_balance
+            from {table('stg_akahu_account_balances')}
+            where account_id = ? and current_balance is not null
+            order by snapshot_date
+        """, (account_id,))
+        snaps = cur.fetchall()
+        if opening is None:
+            cand = [s for s in snaps if s[0] is not None and s[0] < date.fromisoformat(start)]
+            if cand:
+                opening = float(cand[-1][1])
+        if closing is None:
+            cand = [s for s in snaps if s[0] is not None and s[0] <= date.fromisoformat(end)]
+            if cand:
+                closing = float(cand[-1][1])
+
+    cur.close()
+    return txns, opening, closing
+
+
+@app.route('/api/gst/accounts')
+def gst_accounts():
+    """Accounts available for GST (filtered to GST_CONNECTIONS, default ASB)."""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+    try:
+        gst_conns = list(GST_CONNECTIONS)
+        placeholders = ','.join(['?'] * len(gst_conns)) if gst_conns else "''"
+        cur = conn.cursor()
+        cur.execute(f"""
+            with latest as (
+                select *, row_number() over (partition by account_id order by _dlt_load_id desc) as rn
+                from {table('stg_akahu_accounts')}
+            )
+            select account_id, account_name, account_type, connection_name, status
+            from latest
+            where rn = 1 and lower(coalesce(connection_name,'')) in ({placeholders})
+            order by account_name
+        """, [c.lower() for c in gst_conns])
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        cur.close()
+        return jsonify(rows)
+    except Exception as e:
+        logging.error(f"Error fetching GST accounts: {e}")
+        return jsonify({"error": "Failed to query GST accounts."}), 500
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+@app.route('/api/gst/transactions')
+def gst_transactions():
+    account_id = request.args.get('account_id')
+    start = request.args.get('start')
+    end = request.args.get('end')
+    if not account_id or not start or not end:
+        return jsonify({"error": "account_id, start, end are required"}), 400
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
+    try:
+        txns, opening, closing = _query_gst_transactions(conn, account_id, start, end)
+        inflow = sum(float(t['amount']) for t in txns if t['amount'] is not None and float(t['amount']) > 0)
+        outflow = sum(float(t['amount']) for t in txns if t['amount'] is not None and float(t['amount']) < 0)
+        return jsonify({
+            "transactions": [{
+                "txn_date": str(t['txn_date']) if t['txn_date'] is not None else None,
+                "txn_at": t['txn_at'].isoformat() if t['txn_at'] is not None else None,
+                "description": t['description'],
+                "amount": float(t['amount']) if t['amount'] is not None else None,
+                "balance": float(t['balance']) if t['balance'] is not None else None,
+                "txn_type": t['txn_type'],
+            } for t in txns],
+            "opening_balance": opening,
+            "closing_balance": closing,
+            "totals": {
+                "inflow": inflow,
+                "outflow": outflow,
+                "net": inflow + outflow,
+                "count": len(txns),
+            },
+        })
+    except Exception as e:
+        logging.error(f"Error fetching GST transactions: {e}")
+        return jsonify({"error": "Failed to query transactions."}), 500
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+@app.route('/api/gst/transactions.csv')
+def gst_transactions_csv():
+    account_id = request.args.get('account_id')
+    start = request.args.get('start')
+    end = request.args.get('end')
+    if not account_id or not start or not end:
+        return Response("account_id, start, end are required", status=400)
+    conn = get_db_connection()
+    if not conn:
+        return Response("Database connection failed", status=500)
+    try:
+        txns, opening, closing = _query_gst_transactions(conn, account_id, start, end)
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(['date', 'description', 'amount', 'balance', 'type'])
+        for t in txns:
+            writer.writerow([
+                str(t['txn_date']) if t['txn_date'] is not None else '',
+                t['description'] or '',
+                f"{float(t['amount']):.2f}" if t['amount'] is not None else '',
+                f"{float(t['balance']):.2f}" if t['balance'] is not None else '',
+                t['txn_type'] or '',
+            ])
+        writer.writerow([])
+        writer.writerow(['Opening balance', '', '', f"{opening:.2f}" if opening is not None else '', ''])
+        writer.writerow(['Closing balance', '', '', f"{closing:.2f}" if closing is not None else '', ''])
+        filename = f"gst_{account_id}_{start}_{end}.csv"
+        return Response(buf.getvalue(), mimetype='text/csv', headers={
+            'Content-Disposition': f'attachment; filename="{filename}"'
+        })
+    except Exception as e:
+        logging.error(f"Error generating GST CSV: {e}")
+        return Response("Failed to generate CSV.", status=500)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 # --- Frontend Routes ---
 @app.route('/')
 def home():
     """Homepage with links to dashboards."""
     return render_template('home.html')
+
+
+@app.route('/gst')
+def gst():
+    today = date.today()
+    start, end = _current_gst_period(today)
+    return render_template('gst.html', default_start=start.isoformat(), default_end=end.isoformat())
 
 
 @app.route('/mortgage')

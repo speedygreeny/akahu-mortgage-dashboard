@@ -6,3 +6,4 @@ sources:
     tables:
       - name: accounts
       - name: account_balances
+      - name: transactions

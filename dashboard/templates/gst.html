@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GST Return</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style> body { font-family: 'Inter', sans-serif; } </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+  <nav class="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
+    <div class="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16 items-center">
+        <div class="flex items-center">
+          <svg class="h-8 w-8 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span class="ml-2 text-xl font-bold text-slate-900 tracking-tight">GST Return</span>
+          <a href="/mortgage" class="ml-6 text-sm font-medium text-slate-500 hover:text-indigo-600">Mortgage</a>
+          <a href="/gst" class="ml-4 text-sm font-medium text-indigo-600">GST</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-[95%] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+    <!-- Controls -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Account</label>
+          <select id="account" class="w-full rounded-lg border-slate-200 px-3 py-2 text-sm bg-slate-50 border focus:ring-2 focus:ring-indigo-500"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Start date</label>
+          <input id="start" type="date" value="{{ default_start }}" class="w-full rounded-lg border-slate-200 px-3 py-2 text-sm bg-slate-50 border focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">End date</label>
+          <input id="end" type="date" value="{{ default_end }}" class="w-full rounded-lg border-slate-200 px-3 py-2 text-sm bg-slate-50 border focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div class="flex gap-2">
+          <button id="run" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg text-sm shadow-sm">Generate</button>
+          <button id="csv" class="px-4 py-2 rounded-lg text-sm font-medium border border-slate-200 hover:bg-slate-100">CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+        <div class="text-slate-500 text-sm font-medium mb-2">Opening balance</div>
+        <div id="kpi-open" class="text-2xl font-bold text-slate-900">--</div>
+      </div>
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+        <div class="text-slate-500 text-sm font-medium mb-2">Closing balance</div>
+        <div id="kpi-close" class="text-2xl font-bold text-slate-900">--</div>
+      </div>
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+        <div class="text-slate-500 text-sm font-medium mb-2">Money in</div>
+        <div id="kpi-in" class="text-2xl font-bold text-emerald-600">--</div>
+      </div>
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+        <div class="text-slate-500 text-sm font-medium mb-2">Money out</div>
+        <div id="kpi-out" class="text-2xl font-bold text-red-600">--</div>
+      </div>
+    </div>
+
+    <!-- Transactions table -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="flex justify-between items-center p-4 border-b border-slate-100">
+        <h2 class="text-lg font-bold text-slate-900">Transactions <span id="txn-count" class="text-slate-400 text-sm font-normal ml-2"></span></h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-400">
+            <tr>
+              <th class="px-4 py-3 text-left">Date</th>
+              <th class="px-4 py-3 text-left">Description</th>
+              <th class="px-4 py-3 text-left">Type</th>
+              <th class="px-4 py-3 text-right">Amount</th>
+              <th class="px-4 py-3 text-right">Balance</th>
+            </tr>
+          </thead>
+          <tbody id="txn-body" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+      <div id="empty" class="p-8 text-center text-slate-400 hidden">No transactions in this period.</div>
+    </div>
+
+  </main>
+
+  <script>
+    const fmt = new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD' });
+
+    function fmtDate(s) {
+      if (!s) return '';
+      const m = String(s).match(/(\d{4})-(\d{2})-(\d{2})/);
+      return m ? `${m[3]}/${m[2]}/${m[1]}` : s;
+    }
+
+    function setKpi(id, val, signColor) {
+      const el = document.getElementById(id);
+      if (val === null || val === undefined || Number.isNaN(val)) { el.textContent = '--'; return; }
+      el.textContent = fmt.format(val);
+      if (signColor) {
+        el.classList.remove('text-emerald-600', 'text-red-600', 'text-slate-900');
+        el.classList.add(val >= 0 ? 'text-slate-900' : 'text-red-600');
+      }
+    }
+
+    async function loadAccounts() {
+      const r = await fetch('/api/gst/accounts');
+      const accounts = await r.json();
+      const sel = document.getElementById('account');
+      sel.innerHTML = '';
+      if (!accounts.length) {
+        const opt = document.createElement('option');
+        opt.textContent = 'No GST accounts found';
+        opt.disabled = true;
+        sel.appendChild(opt);
+        return;
+      }
+      accounts.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a.account_id;
+        opt.textContent = `${a.connection_name || ''} — ${a.account_name}`;
+        sel.appendChild(opt);
+      });
+    }
+
+    async function runQuery() {
+      const account_id = document.getElementById('account').value;
+      const start = document.getElementById('start').value;
+      const end = document.getElementById('end').value;
+      if (!account_id || !start || !end) return;
+      const url = `/api/gst/transactions?account_id=${encodeURIComponent(account_id)}&start=${start}&end=${end}`;
+      const r = await fetch(url);
+      const data = await r.json();
+      const txns = data.transactions || [];
+      const body = document.getElementById('txn-body');
+      body.innerHTML = '';
+      document.getElementById('empty').classList.toggle('hidden', txns.length > 0);
+      document.getElementById('txn-count').textContent = `${txns.length} row${txns.length === 1 ? '' : 's'}`;
+
+      txns.forEach(t => {
+        const tr = document.createElement('tr');
+        const amount = t.amount == null ? '' : fmt.format(t.amount);
+        const balance = t.balance == null ? '' : fmt.format(t.balance);
+        const amountCls = t.amount > 0 ? 'text-emerald-600' : (t.amount < 0 ? 'text-red-600' : 'text-slate-600');
+        tr.innerHTML = `
+          <td class="px-4 py-2 whitespace-nowrap text-slate-600">${fmtDate(t.txn_date)}</td>
+          <td class="px-4 py-2 text-slate-800">${(t.description || '').replace(/</g, '&lt;')}</td>
+          <td class="px-4 py-2 text-slate-500 text-xs">${t.txn_type || ''}</td>
+          <td class="px-4 py-2 text-right font-medium ${amountCls}">${amount}</td>
+          <td class="px-4 py-2 text-right text-slate-600">${balance}</td>
+        `;
+        body.appendChild(tr);
+      });
+
+      setKpi('kpi-open', data.opening_balance);
+      setKpi('kpi-close', data.closing_balance);
+      const totals = data.totals || {};
+      document.getElementById('kpi-in').textContent = totals.inflow == null ? '--' : fmt.format(totals.inflow);
+      document.getElementById('kpi-out').textContent = totals.outflow == null ? '--' : fmt.format(totals.outflow);
+    }
+
+    function downloadCsv() {
+      const account_id = document.getElementById('account').value;
+      const start = document.getElementById('start').value;
+      const end = document.getElementById('end').value;
+      if (!account_id || !start || !end) return;
+      window.location.href = `/api/gst/transactions.csv?account_id=${encodeURIComponent(account_id)}&start=${start}&end=${end}`;
+    }
+
+    document.getElementById('run').addEventListener('click', runQuery);
+    document.getElementById('csv').addEventListener('click', downloadCsv);
+
+    (async () => {
+      await loadAccounts();
+      runQuery();
+    })();
+  </script>
+</body>
+</html>

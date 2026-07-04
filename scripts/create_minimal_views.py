@@ -22,8 +22,15 @@ def main():
 
     conn = duckdb.connect(DB)
 
+    # Source `accounts` may not have a connection__name column in older mock data.
+    has_conn = conn.execute(
+        "SELECT count(*) FROM information_schema.columns "
+        "WHERE table_schema='akahu_prod' AND table_name='accounts' AND column_name='connection__name'"
+    ).fetchone()[0] > 0
+    conn_expr = "connection__name AS connection_name" if has_conn else "CAST(NULL AS VARCHAR) AS connection_name"
+
     # stg_akahu_accounts: normalized view from akahu_prod.accounts
-    conn.execute("""
+    conn.execute(f"""
     CREATE OR REPLACE VIEW stg_akahu_accounts AS
     SELECT
       _id AS account_id,
@@ -31,6 +38,7 @@ def main():
       type AS account_type,
       CASE WHEN lower(coalesce(type,'')) LIKE '%credit%' OR lower(coalesce(type,'')) LIKE '%card%' THEN true ELSE false END AS is_credit_card,
       status,
+      {conn_expr},
       meta__loan_details__interest__rate AS loan_interest_rate,
       meta__loan_details__interest__type AS loan_interest_type,
       meta__loan_details__interest__expires_at AS loan_interest_expires_at,

@@ -2,8 +2,8 @@ import os
 import dlt
 import requests
 import logging
-from typing import Iterator, Dict, Any, List
-from datetime import datetime, timezone
+from typing import Iterator, Dict, Any, List, Optional
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from dagster import asset, AssetExecutionContext
 
@@ -39,10 +39,51 @@ def _get_accounts() -> List[Dict[str, Any]]:
     return data.get("items") or data.get("result") or []
 
 
-@dlt.resource(name="accounts", write_disposition="merge", primary_key="_id")
+def _get_transactions(start: Optional[str] = None, end: Optional[str] = None) -> Iterator[Dict[str, Any]]:
+    """
+    Yield every transaction from Akahu's /transactions endpoint, following the
+    `cursor.next` pagination chain. `start` / `end` are ISO-8601 strings.
+    Akahu's `start` is exclusive and `end` is inclusive (per their docs).
+    """
+    base = _akahu_base_url()
+    headers = _akahu_headers()
+    params: Dict[str, str] = {}
+    if start:
+        params["start"] = start
+    if end:
+        params["end"] = end
+
+    logger = logging.getLogger(__name__)
+    cursor: Optional[str] = None
+    page = 0
+    total = 0
+    while True:
+        page_params = dict(params)
+        if cursor:
+            page_params["cursor"] = cursor
+        resp = requests.get(f"{base}/transactions", headers=headers, params=page_params, timeout=60)
+        resp.raise_for_status()
+        body = resp.json() or {}
+        items = body.get("items") or []
+        for item in items:
+            if item and item.get("_id"):
+                yield item
+                total += 1
+        page += 1
+        cursor = ((body.get("cursor") or {}).get("next"))
+        if not cursor:
+            break
+    logger.info("Akahu transactions fetched: %d across %d page(s) (start=%s, end=%s)", total, page, start, end)
+
+
+@dlt.resource(name="accounts", write_disposition="replace")
 def akahu_accounts() -> Iterator[Dict[str, Any]]:
     """
-    Loads Akahu accounts metadata (merged on Akahu account _id).
+    Loads Akahu accounts metadata. Uses ``replace`` so that re-authorising a
+    bank (which can issue new internal `_id`s for the same physical account)
+    doesn't leave stale rows behind. The accounts table is a snapshot of
+    currently-connected accounts; no history is kept here. Balance + transaction
+    history are kept on their own tables with merge dispositions.
     """
     # materialize accounts to allow logging of counts and refreshed timestamps
     accounts = _get_accounts()
@@ -137,15 +178,49 @@ def akahu_account_balances(account: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
     }
 
 
+@dlt.resource(
+    name="transactions",
+    write_disposition="merge",
+    primary_key="_id",
+)
+def akahu_transactions(
+    updated: dlt.sources.incremental[str] = dlt.sources.incremental(
+        "date",
+        initial_value=os.getenv("AKAHU_TRANSACTIONS_START", "2024-04-01T00:00:00Z"),
+    ),
+) -> Iterator[Dict[str, Any]]:
+    """
+    Loads Akahu transactions with incremental loading on `date`. dlt tracks the
+    high-water mark in pipeline state.
+
+    To handle late-settling transactions we overlap the window by 7 days on each
+    subsequent run (initial run uses `initial_value` as-is).
+    """
+    last = updated.last_value
+    # If dlt has a previous high-water mark, rewind 7d to catch late settlements.
+    # `last` is the value from prior load (string). Parse, subtract, re-emit ISO.
+    start = last
+    if last:
+        try:
+            parsed = datetime.fromisoformat(last.replace("Z", "+00:00"))
+            start = (parsed - timedelta(days=7)).isoformat()
+        except Exception:
+            start = last
+
+    end = datetime.now(timezone.utc).isoformat()
+    yield from _get_transactions(start=start, end=end)
+
+
 @dlt.source(name="akahu_finance")
 def akahu_source() -> Any:
     """
-    Source yielding accounts and a derived account_balances transformer.
+    Source yielding accounts, derived account_balances, and transactions.
     """
     accounts_res = akahu_accounts()
     balances_res = accounts_res | akahu_account_balances
     yield accounts_res
     yield balances_res
+    yield akahu_transactions()
 
 
 @asset(group_name="ingestion", compute_kind="dlt")

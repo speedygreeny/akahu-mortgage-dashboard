@@ -29,3 +29,10 @@ models:
     columns:
       - name: account_id
         tests: [not_null, unique]
+
+  - name: stg_akahu_transactions
+    columns:
+      - name: transaction_id
+        tests: [not_null, unique]
+      - name: account_id
+        tests: [not_null]

@@ -1,8 +1,13 @@
 {{ config(materialized='table') }}
 
+{% set excluded = var('excluded_connections', []) | map('lower') | list %}
+
 -- If multiple loads happen within the same day, take the latest snapshot for that day/account to avoid double counting.
 with balances as (
   select * from {{ ref('stg_akahu_account_balances') }}
+  {% if excluded %}
+  where lower(coalesce(connection_name,'')) not in ({{ "'" ~ excluded | join("','") ~ "'" }})
+  {% endif %}
 ), ranked as (
   select
     account_id,
